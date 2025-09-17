@@ -19,6 +19,10 @@ var versionCmd = &cobra.Command{
 
 func Execute() {
 	var rootCmd = &cobra.Command{Use: "crawler"}
-	rootCmd.AddCommand(master.MasterCmd, worker.WorkerCmd, versionCmd)
+	rootCmd.AddCommand(
+		master.MasterCmd,
+		worker.WorkerCmd,
+		versionCmd,
+	)
 	rootCmd.Execute()
 }

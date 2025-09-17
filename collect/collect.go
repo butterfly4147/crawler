@@ -33,7 +33,7 @@ func (BaseFetch) Get(req *spider.Request) ([]byte, error) {
 	}
 
 	bodyReader := bufio.NewReader(resp.Body)
-	e := DeterminEncoding(bodyReader)
+	e := DetermineEncoding(bodyReader)
 	utf8Reader := transform.NewReader(bodyReader, e.NewDecoder())
 
 	return ioutil.ReadAll(utf8Reader)
@@ -76,13 +76,13 @@ func (b BrowserFetch) Get(request *spider.Request) ([]byte, error) {
 	}
 
 	bodyReader := bufio.NewReader(resp.Body)
-	e := DeterminEncoding(bodyReader)
+	e := DetermineEncoding(bodyReader)
 	utf8Reader := transform.NewReader(bodyReader, e.NewDecoder())
 
 	return ioutil.ReadAll(utf8Reader)
 }
 
-func DeterminEncoding(r *bufio.Reader) encoding.Encoding {
+func DetermineEncoding(r *bufio.Reader) encoding.Encoding {
 	bytes, err := r.Peek(1024)
 
 	if err != nil {
