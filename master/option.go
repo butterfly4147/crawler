@@ -29,7 +29,7 @@ func WithLogger(logger *zap.Logger) Option {
 func WithregistryURL(registryURL string) Option {
 	return func(opts *options) {
 		opts.registryURL = registryURL
-	}
+	}0
 }
 
 func WithGRPCAddress(GRPCAddress string) Option {
