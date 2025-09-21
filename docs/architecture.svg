@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="680" viewBox="0 0 1080 680">
+  <defs>
+    <style>
+      .title{font:700 18px sans-serif;fill:#222}
+      .text{font:12px sans-serif;fill:#222}
+      .box{fill:#fff;stroke:#333;stroke-width:1.5}
+      .dashed{fill:none;stroke:#888;stroke-width:1.2;stroke-dasharray:6 4}
+      .arrow{fill:none;stroke:#333;stroke-width:1.5;marker-end:url(#arrow)}
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#333"/>
+    </marker>
+  </defs>
+
+  <rect x="10" y="10" width="1060" height="660" class="box" fill="#f9fbff"/>
+  <text x="540" y="35" text-anchor="middle" class="title">分布式爬虫架构（Master + 多 Worker + etcd + MySQL）</text>
+
+  <!-- Registry / Coordination -->
+  <rect x="40" y="70" width="180" height="90" class="box"/>
+  <text x="130" y="95" text-anchor="middle" class="text">etcd 注册中心</text>
+  <text x="130" y="115" text-anchor="middle" class="text">服务发现 / 任务分配协调</text>
+
+  <!-- Storage -->
+  <rect x="860" y="70" width="180" height="90" class="box"/>
+  <text x="950" y="95" text-anchor="middle" class="text">MySQL</text>
+  <text x="950" y="115" text-anchor="middle" class="text">结构化结果入库</text>
+
+  <!-- Crawler Store preset tasks -->
+  <rect x="300" y="70" width="260" height="90" class="box"/>
+  <text x="430" y="95" text-anchor="middle" class="text">Crawler Store（预置任务）</text>
+  <text x="430" y="115" text-anchor="middle" class="text">任务注册：douban* / minimal 等</text>
+
+  <!-- Master -->
+  <rect x="300" y="200" width="260" height="110" class="box"/>
+  <text x="430" y="225" text-anchor="middle" class="text">Master 服务</text>
+  <text x="430" y="245" text-anchor="middle" class="text">读取 Seeds（config.toml）</text>
+  <text x="430" y="265" text-anchor="middle" class="text">向 etcd 注册、调度分发</text>
+
+  <!-- Workers cluster area -->
+  <rect x="600" y="190" width="440" height="300" class="box" fill="#fffef7"/>
+  <text x="820" y="210" text-anchor="middle" class="text">Worker 集群（水平扩展）</text>
+
+  <!-- Worker 1 -->
+  <rect x="620" y="230" width="190" height="230" class="box"/>
+  <text x="715" y="250" text-anchor="middle" class="text">Worker #1</text>
+  <rect x="635" y="265" width="160" height="45" class="box"/>
+  <text x="715" y="292" text-anchor="middle" class="text">Engine</text>
+  <rect x="635" y="315" width="160" height="35" class="box"/>
+  <text x="715" y="337" text-anchor="middle" class="text">Scheduler</text>
+  <rect x="635" y="355" width="160" height="35" class="box"/>
+  <text x="715" y="377" text-anchor="middle" class="text">Worker Pool</text>
+  <rect x="635" y="395" width="160" height="35" class="box"/>
+  <text x="715" y="417" text-anchor="middle" class="text">Fetcher / Parser</text>
+  <rect x="635" y="435" width="160" height="35" class="box"/>
+  <text x="715" y="457" text-anchor="middle" class="text">Result -> Storage</text>
+
+  <!-- Worker 2 (replica) -->
+  <rect x="830" y="230" width="190" height="230" class="box"/>
+  <text x="925" y="250" text-anchor="middle" class="text">Worker #2</text>
+  <rect x="845" y="265" width="160" height="45" class="box"/>
+  <text x="925" y="292" text-anchor="middle" class="text">Engine</text>
+  <rect x="845" y="315" width="160" height="35" class="box"/>
+  <text x="925" y="337" text-anchor="middle" class="text">Scheduler</text>
+  <rect x="845" y="355" width="160" height="35" class="box"/>
+  <text x="925" y="377" text-anchor="middle" class="text">Worker Pool</text>
+  <rect x="845" y="395" width="160" height="35" class="box"/>
+  <text x="925" y="417" text-anchor="middle" class="text">Fetcher / Parser</text>
+  <rect x="845" y="435" width="160" height="35" class="box"/>
+  <text x="925" y="457" text-anchor="middle" class="text">Result -> Storage</text>
+
+  <!-- Edges -->
+  <path class="arrow" d="M220,115 L300,115"/>
+  <path class="arrow" d="M560,115 L860,115"/>
+  <path class="arrow" d="M430,160 L430,200"/>
+  <path class="arrow" d="M560,255 L620,255"/>
+  <path class="arrow" d="M560,255 L830,255"/>
+  <path class="arrow" d="M715,470 L950,470 L950,160"/>
+  <path class="arrow" d="M925,470 L950,470"/>
+
+  <!-- Notes -->
+  <text x="130" y="615" class="text">说明：Master/Worker 通过 etcd 做服务注册与资源协调；Worker 水平扩展提升吞吐；结果统一入 MySQL。</text>
+</svg>

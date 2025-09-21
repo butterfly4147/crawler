@@ -13,6 +13,7 @@ import (
 	"github.com/dreamerjackson/crawler/parse/doubanbook"
 	"github.com/dreamerjackson/crawler/parse/doubangroup"
 	"github.com/dreamerjackson/crawler/parse/doubangroupjs"
+	"github.com/dreamerjackson/crawler/parse/minimal"
 	"github.com/robertkrimen/otto"
 	"go.uber.org/zap"
 )
@@ -21,6 +22,7 @@ func init() {
 	Store.Add(doubangroup.DoubangroupTask)
 	Store.Add(doubanbook.DoubanBookTask)
 	Store.AddJSTask(doubangroupjs.DoubangroupJSTask)
+	Store.Add(minimal.ExampleTask)
 }
 
 func (c *CrawlerStore) Add(task *spider.Task) {
