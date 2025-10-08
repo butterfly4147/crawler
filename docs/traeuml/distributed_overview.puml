@@ -1,0 +1,56 @@
+@startuml
+title 分布式爬虫系统 - 简图（分布式框架）
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam dpi 160
+
+cloud "Internet" as Internet
+component "Load Balancer\n(LB)" as LB
+
+package "Master 集群" {
+  component "Master" as Master
+}
+
+package "Worker 集群" {
+  component "Worker xN" as WorkerN
+  component "Crawler Engine" as Engine
+}
+
+component "Scheduler" as Scheduler
+component "HTTP Client" as HTTP
+component "Proxy Pool" as ProxyPool
+component "Rate Limiter" as RateLimiter
+component "Etcd" as Etcd
+database "MySQL" as MySQL
+folder "FileStorage" as FileStorage
+component "Storage 接口" as Storage
+
+Internet --> LB
+LB --> Master
+Master --> WorkerN : 分发任务
+WorkerN --> Engine
+Engine --> Scheduler
+Engine --> HTTP
+HTTP --> Internet : 请求
+HTTP --> ProxyPool
+HTTP --> RateLimiter
+Engine --> Storage
+Storage --> MySQL
+Storage --> FileStorage
+Master --> Etcd : 领导选举/服务注册
+WorkerN --> Etcd : 服务注册/状态上报
+
+note right of Master
+  - 领导选举（Etcd）
+  - 任务调度
+  - 故障转移
+end note
+
+note right of WorkerN
+  - 横向扩展
+  - 无状态运行
+  - 拉取任务/上报状态
+end note
+
+@enduml
