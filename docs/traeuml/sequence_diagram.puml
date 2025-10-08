@@ -1,0 +1,221 @@
+@startuml 爬虫系统序列图
+
+skinparam backgroundColor #FFFFFF
+skinparam participantBackgroundColor #E3F2FD
+skinparam participantBorderColor #1976D2
+skinparam actorBackgroundColor #FFF3E0
+skinparam actorBorderColor #F57C00
+
+title 分布式爬虫系统 - 工作流程序列图
+
+actor "系统管理员" as Admin
+participant "Master节点" as Master
+participant "etcd集群" as Etcd
+participant "Worker节点1" as Worker1
+participant "Worker节点2" as Worker2
+participant "目标网站" as TargetSite
+participant "MySQL数据库" as Database
+
+== 系统启动阶段 ==
+
+Admin -> Master: 启动Master服务
+activate Master
+
+Master -> Etcd: 注册Master服务
+activate Etcd
+Etcd --> Master: 注册成功
+deactivate Etcd
+
+Master -> Master: 启动领导选举
+Master -> Etcd: 竞选Leader
+activate Etcd
+Etcd --> Master: 成为Leader
+deactivate Etcd
+
+Admin -> Worker1: 启动Worker1服务
+activate Worker1
+Worker1 -> Etcd: 注册Worker1服务
+activate Etcd
+Etcd --> Worker1: 注册成功
+deactivate Etcd
+
+Admin -> Worker2: 启动Worker2服务
+activate Worker2
+Worker2 -> Etcd: 注册Worker2服务
+activate Etcd
+Etcd --> Worker2: 注册成功
+deactivate Etcd
+
+Master -> Etcd: 监听Worker节点变化
+activate Etcd
+Etcd --> Master: 发现新Worker节点
+deactivate Etcd
+
+== 任务分发阶段 ==
+
+Admin -> Master: 添加爬取任务
+Master -> Master: 创建资源规格(ResourceSpec)
+Master -> Etcd: 存储任务资源
+activate Etcd
+Etcd --> Master: 存储成功
+deactivate Etcd
+
+Master -> Master: 分配任务到Worker节点
+Master -> Worker1: 分发任务A (gRPC)
+activate Worker1
+Worker1 --> Master: 确认接收任务A
+deactivate Worker1
+
+Master -> Worker2: 分发任务B (gRPC)
+activate Worker2
+Worker2 --> Master: 确认接收任务B
+deactivate Worker2
+
+== 爬取执行阶段 ==
+
+Worker1 -> Worker1: 初始化爬虫引擎
+Worker1 -> Worker1: 加载任务配置
+Worker1 -> Worker1: 创建请求队列
+
+loop 爬取循环
+    Worker1 -> Worker1: 从队列获取请求
+    Worker1 -> TargetSite: 发送HTTP请求
+    activate TargetSite
+    TargetSite --> Worker1: 返回HTML内容
+    deactivate TargetSite
+    
+    Worker1 -> Worker1: 解析HTML内容
+    Worker1 -> Worker1: 提取数据和新链接
+    Worker1 -> Worker1: 将新链接加入队列
+    
+    Worker1 -> Database: 存储解析的数据
+    activate Database
+    Database --> Worker1: 存储成功
+    deactivate Database
+    
+    Worker1 -> Master: 上报任务进度
+    activate Master
+    Master --> Worker1: 确认收到进度
+    deactivate Master
+end
+
+== 并行处理 ==
+
+par Worker2并行处理
+    Worker2 -> Worker2: 初始化爬虫引擎
+    Worker2 -> Worker2: 加载任务配置
+    
+    loop 爬取循环
+        Worker2 -> Worker2: 从队列获取请求
+        Worker2 -> TargetSite: 发送HTTP请求
+        activate TargetSite
+        TargetSite --> Worker2: 返回HTML内容
+        deactivate TargetSite
+        
+        Worker2 -> Worker2: 解析HTML内容
+        Worker2 -> Database: 存储解析的数据
+        activate Database
+        Database --> Worker2: 存储成功
+        deactivate Database
+        
+        Worker2 -> Master: 上报任务进度
+        activate Master
+        Master --> Worker2: 确认收到进度
+        deactivate Master
+    end
+end
+
+== 异常处理 ==
+
+Worker1 -> TargetSite: 发送HTTP请求
+activate TargetSite
+TargetSite --> Worker1: 返回错误(超时/403等)
+deactivate TargetSite
+
+Worker1 -> Worker1: 记录失败请求
+Worker1 -> Worker1: 应用重试策略
+Worker1 -> Master: 上报错误状态
+activate Master
+Master -> Master: 记录错误统计
+Master --> Worker1: 确认错误处理
+deactivate Master
+
+== 任务完成阶段 ==
+
+Worker1 -> Worker1: 检测任务队列为空
+Worker1 -> Master: 上报任务完成
+activate Master
+Master -> Master: 更新任务状态
+Master -> Etcd: 更新资源状态
+activate Etcd
+Etcd --> Master: 更新成功
+deactivate Etcd
+Master --> Worker1: 确认任务完成
+deactivate Master
+
+Worker2 -> Worker2: 检测任务队列为空
+Worker2 -> Master: 上报任务完成
+activate Master
+Master -> Master: 更新任务状态
+Master --> Worker2: 确认任务完成
+deactivate Master
+
+== 系统监控 ==
+
+loop 定期监控
+    Master -> Etcd: 检查Worker节点健康状态
+    activate Etcd
+    Etcd --> Master: 返回节点状态
+    deactivate Etcd
+    
+    alt Worker节点失效
+        Master -> Master: 检测到Worker1离线
+        Master -> Master: 重新分配Worker1的任务
+        Master -> Worker2: 分配额外任务
+        activate Worker2
+        Worker2 --> Master: 确认接收任务
+        deactivate Worker2
+    end
+end
+
+== 系统关闭 ==
+
+Admin -> Master: 发送关闭信号
+Master -> Worker1: 发送停止信号
+activate Worker1
+Worker1 -> Worker1: 完成当前任务
+Worker1 -> Etcd: 注销服务
+activate Etcd
+Etcd --> Worker1: 注销成功
+deactivate Etcd
+Worker1 --> Master: 确认关闭
+deactivate Worker1
+
+Master -> Worker2: 发送停止信号
+activate Worker2
+Worker2 -> Worker2: 完成当前任务
+Worker2 -> Etcd: 注销服务
+activate Etcd
+Etcd --> Worker2: 注销成功
+deactivate Etcd
+Worker2 --> Master: 确认关闭
+deactivate Worker2
+
+Master -> Etcd: 注销Master服务
+activate Etcd
+Etcd --> Master: 注销成功
+deactivate Etcd
+
+Master --> Admin: 系统关闭完成
+deactivate Master
+
+note over Master, Worker2
+  系统特点：
+  1. 分布式架构，支持水平扩展
+  2. 基于etcd的服务发现和配置管理
+  3. Master-Worker模式，任务自动分发
+  4. 支持故障转移和负载均衡
+  5. 实时监控和状态上报
+end note
+
+@enduml

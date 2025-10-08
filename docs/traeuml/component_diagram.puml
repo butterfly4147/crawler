@@ -1,0 +1,175 @@
+@startuml 爬虫系统组件图
+
+skinparam backgroundColor #FFFFFF
+skinparam componentBackgroundColor #E3F2FD
+skinparam componentBorderColor #1976D2
+skinparam interfaceBackgroundColor #FFF3E0
+skinparam interfaceBorderColor #F57C00
+skinparam databaseBackgroundColor #E8F5E8
+skinparam databaseBorderColor #4CAF50
+
+title 分布式爬虫系统 - 组件架构图
+
+cloud "外部服务" {
+    [目标网站] as TargetSites
+    [代理服务器] as ProxyServers
+}
+
+node "Master节点" {
+    component [Master服务] as MasterService {
+        [资源管理器] as ResourceManager
+        [任务调度器] as TaskScheduler
+        [节点监控器] as NodeMonitor
+        [领导选举] as LeaderElection
+    }
+    
+    interface "gRPC API" as MasterGRPC
+    interface "HTTP API" as MasterHTTP
+    interface "etcd接口" as EtcdInterface
+    
+    MasterService -down- MasterGRPC
+    MasterService -down- MasterHTTP
+    MasterService -right- EtcdInterface
+}
+
+node "Worker节点1" {
+    component [Worker服务] as WorkerService1 {
+        [爬虫引擎] as CrawlerEngine1
+        [任务执行器] as TaskExecutor1
+        [数据解析器] as DataParser1
+        [请求调度器] as RequestScheduler1
+    }
+    
+    interface "gRPC客户端" as WorkerGRPC1
+    interface "HTTP客户端" as WorkerHTTP1
+    
+    WorkerService1 -up- WorkerGRPC1
+    WorkerService1 -up- WorkerHTTP1
+}
+
+node "Worker节点N" {
+    component [Worker服务] as WorkerServiceN {
+        [爬虫引擎] as CrawlerEngineN
+        [任务执行器] as TaskExecutorN
+        [数据解析器] as DataParserN
+        [请求调度器] as RequestSchedulerN
+    }
+    
+    interface "gRPC客户端" as WorkerGRPCN
+    interface "HTTP客户端" as WorkerHTTPN
+    
+    WorkerServiceN -up- WorkerGRPCN
+    WorkerServiceN -up- WorkerHTTPN
+}
+
+component [解析器插件] as ParserPlugins {
+    [豆瓣图书解析器] as DoubanBookParser
+    [豆瓣小组解析器] as DoubanGroupParser
+    [JavaScript解析器] as JSParser
+    [通用解析器] as GenericParser
+}
+
+component [存储组件] as StorageComponents {
+    [SQL存储] as SQLStorage
+    [文件存储] as FileStorage
+    [缓存存储] as CacheStorage
+}
+
+component [网络组件] as NetworkComponents {
+    [HTTP客户端] as HTTPClient
+    [代理管理器] as ProxyManager
+    [限流器] as RateLimiter
+    [用户代理管理] as UAManager
+}
+
+component [配置管理] as ConfigManager {
+    [TOML配置] as TOMLConfig
+    [动态配置] as DynamicConfig
+}
+
+component [日志系统] as LoggingSystem {
+    [结构化日志] as StructuredLog
+    [日志轮转] as LogRotation
+}
+
+database "etcd集群" as EtcdCluster {
+    [服务发现] as ServiceDiscovery
+    [配置存储] as ConfigStorage
+    [分布式锁] as DistributedLock
+    [领导选举存储] as LeaderStorage
+}
+
+database "MySQL数据库" as MySQLDB {
+    [爬取数据] as CrawledData
+    [任务状态] as TaskStatus
+    [统计信息] as Statistics
+}
+
+' 连接关系
+MasterGRPC <--> WorkerGRPC1 : 任务分发\n状态上报
+MasterGRPC <--> WorkerGRPCN : 任务分发\n状态上报
+
+EtcdInterface <--> EtcdCluster : 服务注册\n配置同步\n领导选举
+
+WorkerHTTP1 --> TargetSites : HTTP请求
+WorkerHTTPN --> TargetSites : HTTP请求
+
+WorkerService1 --> ParserPlugins : 数据解析
+WorkerServiceN --> ParserPlugins : 数据解析
+
+WorkerService1 --> StorageComponents : 数据存储
+WorkerServiceN --> StorageComponents : 数据存储
+
+WorkerService1 --> NetworkComponents : 网络请求
+WorkerServiceN --> NetworkComponents : 网络请求
+
+NetworkComponents --> ProxyServers : 代理请求
+
+StorageComponents --> MySQLDB : 数据持久化
+
+MasterService --> ConfigManager : 配置读取
+WorkerService1 --> ConfigManager : 配置读取
+WorkerServiceN --> ConfigManager : 配置读取
+
+MasterService --> LoggingSystem : 日志记录
+WorkerService1 --> LoggingSystem : 日志记录
+WorkerServiceN --> LoggingSystem : 日志记录
+
+' 内部组件关系
+ResourceManager --> TaskScheduler : 资源分配
+TaskScheduler --> NodeMonitor : 节点状态
+LeaderElection --> ResourceManager : 主节点控制
+
+CrawlerEngine1 --> TaskExecutor1 : 任务执行
+TaskExecutor1 --> DataParser1 : 数据解析
+RequestScheduler1 --> CrawlerEngine1 : 请求调度
+
+CrawlerEngineN --> TaskExecutorN : 任务执行
+TaskExecutorN --> DataParserN : 数据解析
+RequestSchedulerN --> CrawlerEngineN : 请求调度
+
+note right of MasterService
+  主控节点负责：
+  - 任务分发和调度
+  - 工作节点管理
+  - 资源分配
+  - 领导选举
+end note
+
+note right of WorkerService1
+  工作节点负责：
+  - 执行爬取任务
+  - 数据解析处理
+  - 结果存储
+  - 状态上报
+end note
+
+note bottom of EtcdCluster
+  etcd提供：
+  - 服务发现和注册
+  - 分布式配置管理
+  - 分布式锁
+  - 领导选举支持
+end note
+
+@enduml

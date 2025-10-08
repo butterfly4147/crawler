@@ -1,0 +1,194 @@
+@startuml 爬虫系统类图
+
+skinparam backgroundColor #FFFFFF
+skinparam classBackgroundColor #F8F9FA
+skinparam classBorderColor #6C757D
+skinparam classArrowColor #495057
+
+title 分布式爬虫系统 - 类图
+
+package "主控模块" {
+    class Master {
+        -ID: string
+        -ready: int32
+        -leaderID: string
+        -workNodes: map[string]*NodeSpec
+        -resources: map[string]*ResourceSpec
+        -IDGen: *snowflake.Node
+        -etcdCli: *clientv3.Client
+        -forwardCli: proto.CrawlerMasterService
+        -rlock: sync.Mutex
+        +AddResource(ctx, spec, resp) : error
+        +DeleteResource(ctx, spec, empty) : error
+        +Campaign()
+        +WatchWorker() : chan *registry.Result
+        +BecomeLeader() : error
+        +Assign(r) : (*NodeSpec, error)
+        +AddSeed()
+    }
+
+    class NodeSpec {
+        +Node: *registry.Node
+        +Payload: int
+    }
+
+    class ResourceSpec {
+        +ID: string
+        +Name: string
+        +AssignedNode: string
+        +CreationTime: int64
+    }
+}
+
+package "爬虫引擎" {
+    class Crawler {
+        -id: string
+        -out: chan spider.ParseResult
+        -Visited: map[string]bool
+        -VisitedLock: sync.Mutex
+        -failures: map[string]*spider.Request
+        -failureLock: sync.Mutex
+        -resources: map[string]*master.ResourceSpec
+        -rlock: sync.Mutex
+        -etcdCli: *clientv3.Client
+        +Run(id, cluster)
+        +Schedule()
+        +CreateWork()
+        +HandleResult()
+        +HasVisited(r) : bool
+        +StoreVisited(reqs)
+        +SetFailure(req)
+    }
+
+    class Schedule {
+        -requestCh: chan *spider.Request
+        -workerCh: chan *spider.Request
+        -priReqQueue: []*spider.Request
+        -reqQueue: []*spider.Request
+        -Logger: *zap.Logger
+        +Push(reqs)
+        +Pull() : *spider.Request
+        +Schedule()
+    }
+
+    interface Scheduler {
+        +Schedule()
+        +Push(...*spider.Request)
+        +Pull() : *spider.Request
+    }
+
+    class CrawlerStore {
+        -list: []*spider.Task
+        -Hash: map[string]*spider.Task
+        +Add(task)
+        +AddJSTask(m)
+    }
+}
+
+package "爬虫任务" {
+    class Task {
+        -Visited: map[string]bool
+        -VisitedLock: sync.Mutex
+        -Closed: bool
+        +Rule: RuleTree
+        +Options: Options
+        +NewTask(opts) : *Task
+    }
+
+    class TaskConfig {
+        +Name: string
+        +Cookie: string
+        +WaitTime: int64
+        +Reload: bool
+        +MaxDepth: int64
+        +Fetcher: string
+        +Limits: []LimitConfig
+    }
+
+    class Property {
+        +Name: string
+        +URL: string
+        +Cookie: string
+        +WaitTime: int64
+        +Reload: bool
+        +MaxDepth: int64
+    }
+
+    class Request {
+        +URL: string
+        +Method: string
+        +RuleName: string
+        +Priority: int64
+        +Depth: int64
+        +Task: *Task
+    }
+
+    interface Fetcher {
+        +Get(url) : ([]byte, error)
+    }
+
+    class ParseResult {
+        +Requests: []*Request
+        +Items: []interface{}
+    }
+}
+
+package "存储模块" {
+    interface Storage {
+        +Save(items) : error
+    }
+
+    class SQLStorage {
+        -db: *sql.DB
+        -options: Options
+        +Save(items) : error
+        +CreateTable(t) : error
+    }
+}
+
+package "代理模块" {
+    interface ProxyProvider {
+        +GetProxy() : string
+        +ReleaseProxy(proxy)
+    }
+
+    class ProxyFunc {
+        +RoundRobin(req) : (*url.URL, error)
+        +Random(req) : (*url.URL, error)
+    }
+}
+
+package "限流模块" {
+    class RateLimiter {
+        -limiter: *rate.Limiter
+        +Wait(ctx) : error
+        +Allow() : bool
+    }
+
+    class MultiLimiter {
+        -limiters: map[string]*RateLimiter
+        +RateLimiter(name): *RateLimiter
+    }
+}
+
+' 关系定义
+Master ||--o{ NodeSpec : manages
+Master ||--o{ ResourceSpec : manages
+Crawler ||--|| Schedule : uses
+Crawler ||--o{ Task : executes
+Schedule ..|> Scheduler : implements
+Task ||--o{ Request : contains
+Task ||--|| TaskConfig : configured_by
+SQLStorage ..|> Storage : implements
+CrawlerStore ||--o{ Task : stores
+Fetcher ||--|| Request : processes
+ParseResult ||--o{ Request : generates
+
+' 依赖关系
+Crawler ..> Master : communicates
+Task ..> Fetcher : uses
+Task ..> Storage : uses
+Crawler ..> RateLimiter : uses
+Crawler ..> ProxyFunc : uses
+
+@enduml

@@ -1,0 +1,259 @@
+@startuml 爬虫系统部署图
+
+skinparam backgroundColor #FFFFFF
+skinparam nodeBackgroundColor #E8F5E8
+skinparam nodeBorderColor #4CAF50
+skinparam componentBackgroundColor #E3F2FD
+skinparam componentBorderColor #1976D2
+skinparam databaseBackgroundColor #FFF3E0
+skinparam databaseBorderColor #F57C00
+
+title 分布式爬虫系统 - 部署架构图
+
+cloud "互联网" {
+    [目标网站集群] as WebSites
+    [代理服务器池] as ProxyPool
+}
+
+node "负载均衡器" as LoadBalancer {
+    component [Nginx/HAProxy] as LB
+}
+
+package "Kubernetes集群" {
+    
+    node "Master节点Pod" as MasterPod {
+        component [crawler-master] as MasterApp {
+            [gRPC服务器:50051] as MasterGRPC
+            [HTTP服务器:8080] as MasterHTTP
+            [pprof监控:6060] as MasterPProf
+        }
+        
+        artifact "config.toml" as MasterConfig
+        artifact "crawler二进制" as MasterBinary
+        
+        MasterApp ..> MasterConfig : 读取配置
+        MasterApp ..> MasterBinary : 运行时
+    }
+    
+    node "Worker节点Pod1" as WorkerPod1 {
+        component [crawler-worker] as WorkerApp1 {
+            [gRPC客户端] as WorkerGRPC1
+            [HTTP服务器:8081] as WorkerHTTP1
+            [pprof监控:6061] as WorkerPProf1
+        }
+        
+        artifact "config.toml" as WorkerConfig1
+        artifact "crawler二进制" as WorkerBinary1
+        
+        WorkerApp1 ..> WorkerConfig1 : 读取配置
+        WorkerApp1 ..> WorkerBinary1 : 运行时
+    }
+    
+    node "Worker节点Pod2" as WorkerPod2 {
+        component [crawler-worker] as WorkerApp2 {
+            [gRPC客户端] as WorkerGRPC2
+            [HTTP服务器:8082] as WorkerHTTP2
+            [pprof监控:6062] as WorkerPProf2
+        }
+        
+        artifact "config.toml" as WorkerConfig2
+        artifact "crawler二进制" as WorkerBinary2
+        
+        WorkerApp2 ..> WorkerConfig2 : 读取配置
+        WorkerApp2 ..> WorkerBinary2 : 运行时
+    }
+    
+    node "Worker节点PodN" as WorkerPodN {
+        component [crawler-worker] as WorkerAppN {
+            [gRPC客户端] as WorkerGRPCN
+            [HTTP服务器:808N] as WorkerHTTPN
+            [pprof监控:606N] as WorkerPProfN
+        }
+        
+        artifact "config.toml" as WorkerConfigN
+        artifact "crawler二进制" as WorkerBinaryN
+        
+        WorkerAppN ..> WorkerConfigN : 读取配置
+        WorkerAppN ..> WorkerBinaryN : 运行时
+    }
+}
+
+package "etcd集群" {
+    node "etcd-1" as Etcd1 {
+        database [etcd实例1:2379] as EtcdDB1
+        component [Raft协议] as Raft1
+    }
+    
+    node "etcd-2" as Etcd2 {
+        database [etcd实例2:2379] as EtcdDB2
+        component [Raft协议] as Raft2
+    }
+    
+    node "etcd-3" as Etcd3 {
+        database [etcd实例3:2379] as EtcdDB3
+        component [Raft协议] as Raft3
+    }
+}
+
+package "数据存储层" {
+    node "MySQL主库" as MySQLMaster {
+        database [MySQL 8.0] as MySQLDB
+        component [InnoDB引擎] as InnoDBEngine
+        
+        MySQLDB ..> InnoDBEngine : 存储引擎
+    }
+    
+    node "MySQL从库" as MySQLSlave {
+        database [MySQL 8.0 (只读)] as MySQLSlaveDB
+        component [主从复制] as Replication
+        
+        MySQLSlaveDB ..> Replication : 数据同步
+    }
+}
+
+package "监控系统" {
+    node "Prometheus" as Prometheus {
+        component [指标收集器] as MetricsCollector
+        database [时序数据库] as TSDB
+    }
+    
+    node "Grafana" as Grafana {
+        component [可视化面板] as Dashboard
+        component [告警管理] as AlertManager
+    }
+}
+
+package "日志系统" {
+    node "ELK Stack" as ELK {
+        component [Elasticsearch] as ES
+        component [Logstash] as Logstash
+        component [Kibana] as Kibana
+        component [Filebeat] as Filebeat
+    }
+}
+
+package "配置管理" {
+    node "ConfigMap" as K8sConfigMap {
+        artifact [应用配置] as AppConfig
+        artifact [环境变量] as EnvVars
+    }
+    
+    node "Secret" as K8sSecret {
+        artifact [数据库密码] as DBPassword
+        artifact [API密钥] as APIKeys
+    }
+}
+
+' 网络连接
+LB --> MasterHTTP : HTTP/HTTPS
+LB --> WorkerHTTP1 : HTTP/HTTPS
+LB --> WorkerHTTP2 : HTTP/HTTPS
+LB --> WorkerHTTPN : HTTP/HTTPS
+
+MasterGRPC <--> WorkerGRPC1 : gRPC通信
+MasterGRPC <--> WorkerGRPC2 : gRPC通信
+MasterGRPC <--> WorkerGRPCN : gRPC通信
+
+' etcd集群连接
+MasterApp --> EtcdDB1 : 服务注册/配置
+MasterApp --> EtcdDB2 : 服务注册/配置
+MasterApp --> EtcdDB3 : 服务注册/配置
+
+WorkerApp1 --> EtcdDB1 : 服务注册
+WorkerApp2 --> EtcdDB2 : 服务注册
+WorkerAppN --> EtcdDB3 : 服务注册
+
+' etcd集群内部通信
+Raft1 <--> Raft2 : 集群同步
+Raft2 <--> Raft3 : 集群同步
+Raft3 <--> Raft1 : 集群同步
+
+' 数据库连接
+WorkerApp1 --> MySQLDB : 写入数据
+WorkerApp2 --> MySQLDB : 写入数据
+WorkerAppN --> MySQLDB : 写入数据
+
+MySQLDB --> MySQLSlaveDB : 主从复制
+MasterApp --> MySQLSlaveDB : 读取统计
+
+' 外部网络连接
+WorkerApp1 --> WebSites : HTTP请求
+WorkerApp2 --> WebSites : HTTP请求
+WorkerAppN --> WebSites : HTTP请求
+
+WorkerApp1 --> ProxyPool : 代理请求
+WorkerApp2 --> ProxyPool : 代理请求
+WorkerAppN --> ProxyPool : 代理请求
+
+' 监控连接
+MetricsCollector --> MasterPProf : 指标采集
+MetricsCollector --> WorkerPProf1 : 指标采集
+MetricsCollector --> WorkerPProf2 : 指标采集
+MetricsCollector --> WorkerPProfN : 指标采集
+
+TSDB --> Dashboard : 数据可视化
+AlertManager --> Dashboard : 告警展示
+
+' 日志连接
+Filebeat --> MasterApp : 日志收集
+Filebeat --> WorkerApp1 : 日志收集
+Filebeat --> WorkerApp2 : 日志收集
+Filebeat --> WorkerAppN : 日志收集
+
+Filebeat --> Logstash : 日志传输
+Logstash --> ES : 日志存储
+ES --> Kibana : 日志查询
+
+' 配置管理连接
+AppConfig --> MasterConfig : 配置注入
+AppConfig --> WorkerConfig1 : 配置注入
+AppConfig --> WorkerConfig2 : 配置注入
+AppConfig --> WorkerConfigN : 配置注入
+
+DBPassword --> MasterApp : 密码注入
+DBPassword --> WorkerApp1 : 密码注入
+DBPassword --> WorkerApp2 : 密码注入
+DBPassword --> WorkerAppN : 密码注入
+
+note top of LoadBalancer
+  负载均衡器配置：
+  - SSL终止
+  - 健康检查
+  - 请求路由
+  - 限流保护
+end note
+
+note right of MasterPod
+  Master节点特性：
+  - 单点部署(Leader选举)
+  - 资源管理和任务分发
+  - 集群状态监控
+  - 故障转移支持
+end note
+
+note right of WorkerPod1
+  Worker节点特性：
+  - 水平扩展
+  - 无状态设计
+  - 自动服务发现
+  - 优雅关闭
+end note
+
+note bottom of EtcdDB1
+  etcd集群提供：
+  - 服务发现注册
+  - 分布式配置
+  - 分布式锁
+  - 领导选举
+  - 高可用保证
+end note
+
+note bottom of MySQLDB
+  数据库架构：
+  - 主从复制
+  - 读写分离
+  - 连接池管理
+  - 事务支持
+end note
+
+@enduml

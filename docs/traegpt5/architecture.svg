@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="640" viewBox="0 0 1000 640">
+  <defs>
+    <style>
+      .box { fill:#ffffff; stroke:#2c3e50; stroke-width:2; rx:8; ry:8; }
+      .title { font-family:Segoe UI, Arial; font-size:16px; font-weight:bold; fill:#2c3e50; }
+      .text { font-family:Segoe UI, Arial; font-size:14px; fill:#2c3e50; }
+      .arrow { stroke:#34495e; stroke-width:2; marker-end:url(#arrowHead); }
+      .arrow-dash { stroke:#7f8c8d; stroke-width:2; stroke-dasharray:6 4; marker-end:url(#arrowHead); }
+      .badge { fill:#ecf0f1; stroke:#95a5a6; stroke-width:1; rx:6; ry:6; }
+      .badge-text { font-family:Segoe UI, Arial; font-size:12px; fill:#7f8c8d; }
+    </style>
+    <marker id="arrowHead" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#34495e" />
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="30" y="40" class="title">分布式爬虫系统架构（Master–Worker / etcd / gRPC / MySQL）</text>
+
+  <!-- User -->
+  <rect x="40" y="90" width="150" height="70" class="box" />
+  <text x="115" y="115" text-anchor="middle" class="title">用户</text>
+  <text x="115" y="135" text-anchor="middle" class="text">HTTP / CLI</text>
+
+  <!-- HTTP Gateway -->
+  <rect x="240" y="80" width="200" height="90" class="box" />
+  <text x="340" y="105" text-anchor="middle" class="title">HTTP 网关</text>
+  <text x="340" y="125" text-anchor="middle" class="text">REST → gRPC 转发</text>
+  <rect x="280" y="140" width="120" height="24" class="badge" />
+  <text x="340" y="156" text-anchor="middle" class="badge-text">proto/crawler</text>
+
+  <!-- Master Cluster -->
+  <rect x="500" y="60" width="420" height="140" class="box" />
+  <text x="710" y="85" text-anchor="middle" class="title">Master 集群</text>
+
+  <rect x="520" y="100" width="160" height="80" class="box" />
+  <text x="600" y="125" text-anchor="middle" class="title">Master A</text>
+  <text x="600" y="145" text-anchor="middle" class="text">Leader 候选</text>
+
+  <rect x="700" y="100" width="160" height="80" class="box" />
+  <text x="780" y="125" text-anchor="middle" class="title">Master B</text>
+  <text x="780" y="145" text-anchor="middle" class="text">Follower</text>
+
+  <rect x="880" y="100" width="24" height="80" class="badge" />
+  <text x="892" y="145" transform="rotate(-90 892 145)" class="badge-text">更多</text>
+
+  <!-- etcd -->
+  <rect x="520" y="240" width="200" height="90" class="box" />
+  <text x="620" y="265" text-anchor="middle" class="title">etcd</text>
+  <text x="620" y="285" text-anchor="middle" class="text">注册 / 发现 / 选举</text>
+  <rect x="560" y="300" width="120" height="24" class="badge" />
+  <text x="620" y="316" text-anchor="middle" class="badge-text">/micro/registry</text>
+
+  <!-- Storage -->
+  <rect x="760" y="240" width="200" height="90" class="box" />
+  <text x="860" y="265" text-anchor="middle" class="title">MySQL</text>
+  <text x="860" y="285" text-anchor="middle" class="text">SQL 存储（可扩展）</text>
+  <rect x="800" y="300" width="120" height="24" class="badge" />
+  <text x="860" y="316" text-anchor="middle" class="badge-text">storage/sqlstorage</text>
+
+  <!-- Workers -->
+  <rect x="120" y="400" width="760" height="160" class="box" />
+  <text x="500" y="425" text-anchor="middle" class="title">Worker 集群（Engine + Spider）</text>
+
+  <rect x="160" y="450" width="180" height="80" class="box" />
+  <text x="250" y="475" text-anchor="middle" class="title">Worker 1</text>
+  <text x="250" y="495" text-anchor="middle" class="text">Engine / Spider</text>
+
+  <rect x="380" y="450" width="180" height="80" class="box" />
+  <text x="470" y="475" text-anchor="middle" class="title">Worker 2</text>
+  <text x="470" y="495" text-anchor="middle" class="text">Engine / Spider</text>
+
+  <rect x="600" y="450" width="180" height="80" class="box" />
+  <text x="690" y="475" text-anchor="middle" class="title">Worker N</text>
+  <text x="690" y="495" text-anchor="middle" class="text">Engine / Spider</text>
+
+  <!-- Flows -->
+  <!-- User -> HTTP Gateway -->
+  <line x1="190" y1="125" x2="240" y2="125" class="arrow" />
+  <!-- Gateway -> Master A/B (gRPC) -->
+  <line x1="440" y1="125" x2="520" y2="125" class="arrow" />
+  <line x1="440" y1="155" x2="700" y2="155" class="arrow" />
+  <text x="480" y="115" class="badge-text">gRPC</text>
+
+  <!-- Masters <-> etcd (election / registry) -->
+  <line x1="600" y1="180" x2="600" y2="240" class="arrow-dash" />
+  <line x1="780" y1="180" x2="620" y2="240" class="arrow-dash" />
+  <text x="610" y="215" class="badge-text">选举 / 注册</text>
+
+  <!-- Master -> Workers (assign) -->
+  <line x1="600" y1="200" x2="250" y2="450" class="arrow" />
+  <line x1="780" y1="200" x2="470" y2="450" class="arrow" />
+  <line x1="780" y1="200" x2="690" y2="450" class="arrow" />
+  <text x="520" y="340" class="badge-text">Assign() 任务分配</text>
+
+  <!-- Workers -> MySQL (results) -->
+  <line x1="250" y1="530" x2="860" y2="330" class="arrow" />
+  <line x1="470" y1="530" x2="860" y2="330" class="arrow" />
+  <line x1="690" y1="530" x2="860" y2="330" class="arrow" />
+  <text x="830" y="350" class="badge-text">结果写入</text>
+
+  <!-- Legend -->
+  <rect x="40" y="560" width="920" height="60" class="box" />
+  <text x="60" y="585" class="text">说明：</text>
+  <text x="120" y="585" class="text">实线箭头：请求/任务/结果流</text>
+  <text x="360" y="585" class="text">虚线箭头：服务注册与选举/发现</text>
+  <text x="650" y="585" class="text">Engine：队列、并发、去重、重试；Spider：规则树解析</text>
+</svg>

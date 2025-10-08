@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="740" viewBox="0 0 1200 740" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <style>
+      .box { fill:#ffffff; stroke:#2d3748; stroke-width:2; rx:8; ry:8; }
+      .title { font-weight:bold; fill:#1a202c; }
+      .label { fill:#2d3748; font-size:14px; }
+      .group { fill:#f7fafc; stroke:#a0aec0; stroke-dasharray:6 4; rx:12; ry:12; }
+      .arrow { stroke:#4a5568; stroke-width:2; marker-end:url(#arrowHead); }
+      .arrow-blue { stroke:#3182ce; stroke-width:2; marker-end:url(#arrowHeadBlue); }
+      .arrow-green { stroke:#38a169; stroke-width:2; marker-end:url(#arrowHeadGreen); }
+      .arrow-orange { stroke:#dd6b20; stroke-width:2; marker-end:url(#arrowHeadOrange); }
+      .small { font-size:12px; fill:#4a5568; }
+    </style>
+    <marker id="arrowHead" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#4a5568" />
+    </marker>
+    <marker id="arrowHeadBlue" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#3182ce" />
+    </marker>
+    <marker id="arrowHeadGreen" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#38a169" />
+    </marker>
+    <marker id="arrowHeadOrange" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#dd6b20" />
+    </marker>
+  </defs>
+
+  <!-- 标题 -->
+  <text x="600" y="40" text-anchor="middle" class="title" font-size="22">分布式爬虫架构（Master-Worker + etcd + gRPC）</text>
+
+  <!-- 客户端与网关层 -->
+  <rect x="60" y="80" width="260" height="90" class="box"/>
+  <text x="190" y="105" text-anchor="middle" class="title">客户端 / 调度控制</text>
+  <text x="70" y="130" class="small">- REST: /crawler/resource</text>
+  <text x="70" y="150" class="small">- 通过 grpc-gateway 访问 Master</text>
+
+  <rect x="360" y="80" width="300" height="90" class="box"/>
+  <text x="510" y="105" text-anchor="middle" class="title">HTTP 网关（grpc-gateway）</text>
+  <text x="370" y="130" class="small">- 反向代理到 Master gRPC</text>
+  <text x="370" y="150" class="small">- 映射 Add/DeleteResource</text>
+
+  <!-- Master 组 -->
+  <rect x="740" y="60" width="380" height="160" class="group"/>
+  <text x="930" y="80" text-anchor="middle" class="title">Master</text>
+  <rect x="760" y="100" width="180" height="100" class="box"/>
+  <text x="850" y="125" text-anchor="middle" class="title">Leader 选举</text>
+  <text x="770" y="145" class="small">- etcd concurrency.Election</text>
+  <text x="770" y="165" class="small">- 成为 Leader 承担分配</text>
+
+  <rect x="960" y="100" width="140" height="100" class="box"/>
+  <text x="1030" y="125" text-anchor="middle" class="title">任务分配</text>
+  <text x="970" y="145" class="small">- workNodes 负载</text>
+  <text x="970" y="165" class="small">- 写入 RESOURCEPATH</text>
+
+  <!-- etcd 与 MySQL -->
+  <rect x="120" y="260" width="200" height="100" class="box"/>
+  <text x="220" y="285" text-anchor="middle" class="title">etcd</text>
+  <text x="130" y="305" class="small">- 服务注册与发现</text>
+  <text x="130" y="325" class="small">- Leader 选举</text>
+  <text x="130" y="345" class="small">- RESOURCEPATH 任务下发</text>
+
+  <rect x="360" y="260" width="240" height="100" class="box"/>
+  <text x="480" y="285" text-anchor="middle" class="title">MySQL（SQLStorage）</text>
+  <text x="370" y="305" class="small">- 批量缓冲 Flush</text>
+  <text x="370" y="325" class="small">- 自动建表（字段推断）</text>
+
+  <!-- Worker 组 -->
+  <rect x="660" y="240" width="500" height="300" class="group"/>
+  <text x="910" y="260" text-anchor="middle" class="title">Workers（go-micro + Engine）</text>
+
+  <!-- Worker 1 -->
+  <rect x="680" y="280" width="220" height="240" class="box"/>
+  <text x="790" y="305" text-anchor="middle" class="title">Worker #1</text>
+  <text x="690" y="325" class="small">- 引擎：Schedule/Visited/Failures</text>
+  <text x="690" y="345" class="small">- Seeds: config.toml</text>
+  <text x="690" y="365" class="small">- Fetcher/Parser/Storage</text>
+  <text x="690" y="385" class="small">- watch RESOURCEPATH</text>
+  <rect x="700" y="400" width="180" height="40" class="box"/>
+  <text x="790" y="425" text-anchor="middle" class="label">collect（BrowserFetch）</text>
+  <rect x="700" y="450" width="180" height="40" class="box"/>
+  <text x="790" y="475" text-anchor="middle" class="label">limiter + proxy</text>
+
+  <!-- Worker 2 -->
+  <rect x="920" y="280" width="220" height="240" class="box"/>
+  <text x="1030" y="305" text-anchor="middle" class="title">Worker #2</text>
+  <text x="930" y="325" class="small">- 同上，参与负载均衡</text>
+  <text x="930" y="345" class="small">- 任务失效时重分配</text>
+
+  <!-- 连接箭头 -->
+  <!-- 客户端 -> 网关 -> Master.gRPC -->
+  <line x1="320" y1="125" x2="360" y2="125" class="arrow-blue" />
+  <line x1="660" y1="125" x2="740" y2="125" class="arrow-blue" />
+  <text x="510" y="70" text-anchor="middle" class="small">HTTP → gRPC</text>
+
+  <!-- Master ↔ etcd（选举/注册/资源） -->
+  <line x1="840" y1="220" x2="320" y2="310" class="arrow" />
+  <text x="560" y="280" class="small">选举 / 资源写入</text>
+
+  <!-- Workers ↔ etcd（注册/监听资源） -->
+  <line x1="660" y1="360" x2="320" y2="310" class="arrow-green" />
+  <line x1="1160" y1="360" x2="320" y2="310" class="arrow-green" />
+  <text x="760" y="330" class="small">注册 / 监听 RESOURCEPATH</text>
+
+  <!-- Workers → MySQL（结果存储） -->
+  <line x1="660" y1="440" x2="360" y2="310" class="arrow-orange" />
+  <line x1="1160" y1="440" x2="600" y2="310" class="arrow-orange" />
+  <text x="540" y="430" class="small">批量 Flush 写入</text>
+
+  <!-- 注释说明块 -->
+  <rect x="60" y="400" width="540" height="260" class="box"/>
+  <text x="330" y="425" text-anchor="middle" class="title">数据流摘要</text>
+  <text x="70" y="450" class="small">1) Seeds 来自 config.toml，注入 Engine（Worker）</text>
+  <text x="70" y="470" class="small">2) Root 生成初始 Requests，Schedule 管理队列</text>
+  <text x="70" y="490" class="small">3) CreateWork: Check → Fetch → Parse → Push 新请求</text>
+  <text x="70" y="510" class="small">4) HandleResult: 写入 SQLStorage（自动建表 + 批量）</text>
+  <text x="70" y="530" class="small">5) Master 成为 Leader 后按负载分配任务到 etcd</text>
+  <text x="70" y="550" class="small">6) Workers 监听 RESOURCEPATH，启动/停止对应 Task</text>
+  <text x="70" y="570" class="small">7) 失败重试：首次失败通过 SetFailure 重新入队</text>
+
+  <!-- 版本/来源 -->
+  <text x="1180" y="720" text-anchor="end" class="small">Trae 架构图 · 2025</text>
+</svg>
