@@ -1,0 +1,41 @@
+@startuml
+title 主从协作时序（资源注册、调度、执行、存储）
+
+actor User
+participant "cmd.master" as cliMaster
+participant "master.Master" as masterSvc
+participant "CrawlerMaster API" as api
+participant "cmd.worker" as cliWorker
+participant "engine.Crawler" as crawler
+participant "engine.Schedule" as schedule
+participant "spider.Fetcher" as fetcher
+participant "spider.Rule" as rule
+participant "storage.SQLStorage" as storage
+
+User -> cliMaster: 启动 master
+cliMaster -> masterSvc: 运行服务
+masterSvc -> api: 注册 CrawlerMaster 接口
+masterSvc -> masterSvc: 监控/加载资源（Etcd）
+
+User -> cliWorker: 启动 worker
+cliWorker -> crawler: 初始化 Crawler（Seeds/Options）
+crawler -> schedule: Schedule()
+
+masterSvc -> crawler: 分发资源/任务
+crawler -> schedule: Push(seed requests)
+schedule -> crawler: Pull() 请求
+
+crawler -> fetcher: Get(request)
+fetcher --> crawler: 返回页面数据
+crawler -> rule: ParseFunc(context)
+rule --> crawler: ParseResult（items、next requests）
+
+crawler -> storage: Save(items)
+storage --> crawler: OK
+crawler -> schedule: Push(next requests)
+
+note over crawler
+循环执行直到耗尽队列或达到深度限制
+end note
+
+@enduml

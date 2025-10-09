@@ -1,0 +1,50 @@
+@startuml
+title Distributed Flows
+
+skinparam sequenceMessageAlign center
+
+== Leader Election ==
+participant Master1
+participant Master2
+participant Master3
+participant Etcd
+
+Master1 -> Etcd : Campaign `/crawler/election`
+Master2 -> Etcd : Campaign `/crawler/election`
+Master3 -> Etcd : Campaign `/crawler/election`
+Etcd --> Master2 : Elect leader
+Master1 <-- Etcd : Watch leader changes
+Master3 <-- Etcd : Watch leader changes
+
+newpage
+
+== Add Resource ==
+actor Client
+participant HTTPGW as "HTTP Gateway"
+participant Master as "CrawlerMaster"
+participant Etcd
+participant Worker as "Worker Service"
+
+Client -> HTTPGW : POST /v1/resource
+HTTPGW -> Master : AddResource(ResourceSpec)
+Master -> Master : Hystrix + RateLimit
+Master -> Etcd : Put `/resources/<id>` + assigned worker
+Etcd --> Worker : Watch event (add)
+Worker -> Worker : runTasks(resource)
+
+newpage
+
+== Worker Node Change ==
+participant Registry as "Etcd Registry"
+participant Master
+participant WorkerA
+participant WorkerB
+
+WorkerA -> Registry : Register `go.micro.server.worker`
+Master <- Registry : Watch services
+Master -> Master : updateWorkNodes()
+WorkerB -> Registry : Deregister or fail
+Master <- Registry : Watch remove
+Master -> Master : reAssign(resources)
+
+@enduml

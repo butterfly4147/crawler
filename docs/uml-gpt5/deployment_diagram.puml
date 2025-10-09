@@ -1,0 +1,39 @@
+@startuml
+title 部署架构（Kubernetes / Micro + gRPC）
+
+skinparam linetype ortho
+
+node "Developer Machine" as dev {
+  component "cmd.master" as devMaster
+  component "cmd.worker" as devWorker
+}
+
+node "Kubernetes Cluster" as k8s {
+  node "Namespace: crawler" as ns {
+    node "Pod: master" as masterPod {
+      component "master.Master" as masterSvc
+      component "gRPC Server" as grpcSrv
+      component "HTTP Gateway" as httpGw
+    }
+    node "Pod: worker[*]" as workerPod {
+      component "engine.Crawler" as crawler
+      component "engine.Schedule" as schedule
+    }
+    database "MySQL/PostgreSQL" as db
+    node "Etcd" as etcd
+    node "Ingress" as ingress
+  }
+}
+
+devMaster --> masterPod : 启动/管理 Master
+devWorker --> workerPod : 启动 Worker
+
+masterSvc --> grpcSrv : 暴露 CrawlerMaster
+grpcSrv --> httpGw : gRPC-Gateway
+httpGw --> ingress : 暴露 HTTP API
+
+crawler --> db : 存储数据（via SQLStorage）
+crawler --> etcd : 读取资源/协调
+masterSvc --> etcd : 资源协调/选主
+
+@enduml

@@ -1,0 +1,124 @@
+@startuml
+title 核心类与接口关系
+
+skinparam linetype ortho
+
+package engine {
+  class Crawler {
+    - id: string
+    - out: chan spider.ParseResult
+    - Visited: map[string]bool
+    - failures: map[string]*spider.Request
+    - resources: map[string]*master.ResourceSpec
+    - etcdCli: clientv3.Client
+    - options: options
+    + Run(id: string, cluster: bool)
+    + Schedule()
+  }
+
+  interface Scheduler {
+    + Schedule()
+    + Push(...*spider.Request)
+    + Pull(): *spider.Request
+  }
+
+  class Schedule {
+    - requestCh: chan *spider.Request
+    - workerCh: chan *spider.Request
+    - priReqQueue: []*spider.Request
+    - reqQueue: []*spider.Request
+    - Logger: *zap.Logger
+  }
+
+  class options {
+    WorkCount: int
+    Fetcher: spider.Fetcher
+    Storage: spider.Storage
+    Logger: *zap.Logger
+    Seeds: []*spider.Task
+    registryURL: string
+    scheduler: Scheduler
+  }
+}
+
+package spider {
+  class Task {
+    - Visited: map[string]bool
+    - Closed: bool
+    - Rule: RuleTree
+    - Options: Options
+  }
+  class Options {
+    Name: string
+    URL: string
+    Cookie: string
+    WaitTime: int64
+    Reload: bool
+    MaxDepth: int64
+    Fetcher: Fetcher
+    Storage: Storage
+    Limit: limiter.RateLimiter
+  }
+  interface Fetcher {
+    + Get(url: *Request): []byte
+  }
+  interface Storage {
+    + Save(datas: ...*DataCell): error
+  }
+  class DataCell {
+    Task: *Task
+    Data: map[string]interface{}
+  }
+  class RuleTree {
+    + Root(): ([]*Request, error)
+    Trunk: map[string]*Rule
+  }
+  class Rule {
+    ItemFields: []string
+    + ParseFunc(ctx: *Context): ParseResult
+  }
+}
+
+package storage.sqlstorage {
+  class SQLStorage {
+    - dataDocker: []*spider.DataCell
+    - db: sqldb.DBer
+    - Table: map[string]struct{}
+  }
+}
+
+package master {
+  class Master {
+    ID: string
+    ready: int32
+    leaderID: string
+    workNodes: map[string]*NodeSpec
+    resources: map[string]*ResourceSpec
+    IDGen: *snowflake.Node
+    etcdCli: *clientv3.Client
+    forwardCli: proto.CrawlerMasterService
+  }
+  class NodeSpec {
+    Node: *registry.Node
+    Payload: int
+  }
+  class ResourceSpec {
+    ID: string
+    Name: string
+    AssignedNode: string
+    CreationTime: int64
+  }
+}
+
+engine.Crawler --> engine.Schedule : uses
+engine.options o-- engine.Crawler
+engine.Crawler --> spider.Task : bind seeds
+engine.Crawler --> spider.Fetcher
+engine.Crawler --> spider.Storage
+engine.Crawler --> master.ResourceSpec
+storage.sqlstorage.SQLStorage ..|> spider.Storage
+spider.Task --> spider.RuleTree
+spider.RuleTree --> spider.Rule
+spider.DataCell --> spider.Task
+
+@enduml

@@ -1,0 +1,30 @@
+@startuml
+title Distributed Overview
+
+skinparam componentStyle rectangle
+
+rectangle "Kubernetes Cluster" {
+  node "Master Pod(s)" as master_pod {
+    [HTTP Gateway] <<grpc-gateway>>
+    [CrawlerMaster gRPC] <<go-micro>>
+    [Hystrix Wrapper] <<fault-tolerance>>
+    [Rate Limiter] <<flow-control>>
+  }
+  node "Worker Pods" as worker_pods {
+    component "Worker Service\n`go.micro.server.worker`" as worker_svc
+  }
+  cloud "Etcd Cluster" as etcd
+
+  [HTTP Gateway] --> [CrawlerMaster gRPC] : REST -> gRPC
+  [CrawlerMaster gRPC] ..> [Hystrix Wrapper]
+  [CrawlerMaster gRPC] ..> [Rate Limiter]
+
+  [CrawlerMaster gRPC] --> etcd : Leader election\n`/crawler/election`
+  [CrawlerMaster gRPC] --> etcd : Resource registry\n`/resources/<id>`
+  worker_svc --> etcd : Register/Discover\nservice instances
+  worker_svc --> etcd : Watch assigned resources\n`/resources/<id>`
+
+  [CrawlerMaster gRPC] ..> worker_svc : Assign/Reassign via registry lookup
+}
+
+@enduml

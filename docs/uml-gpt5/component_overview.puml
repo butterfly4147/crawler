@@ -1,0 +1,74 @@
+@startuml
+title Crawler 项目组件总览
+
+skinparam componentStyle rectangle
+skinparam linetype ortho
+
+package "CLI" {
+  [cmd.master] as cliMaster
+  [cmd.worker] as cliWorker
+}
+
+package "Master" {
+  [master.Master] as masterSvc
+}
+
+package "Core" {
+  [engine.Crawler] as engineCrawler
+  [engine.Schedule] as engineSchedule
+  [generator] as generator
+  [collect] as collect
+}
+
+package "Spider" {
+  [spider.Task] as spiderTask
+  [spider.Fetcher] as spiderFetcher
+  [spider.Storage] as spiderStorage
+  [spider.RuleTree/Rule] as spiderRule
+}
+
+package "Infra" {
+  [limiter] as limiter
+  [proxy] as proxy
+  [sqldb] as sqldb
+  [storage.sqlstorage.SQLStorage] as sqlstorage
+  [log] as logpkg
+  [auth] as authpkg
+}
+
+package "APIs" {
+  [proto.crawler.CrawlerMaster] as apiCrawlerMaster
+  [gRPC Gateway/HTTP] as apiGateway
+}
+
+cliMaster --> masterSvc : 启动 Master
+cliWorker --> engineCrawler : 启动 Worker
+
+masterSvc --> apiCrawlerMaster : 注册/转发 Resource
+masterSvc --> engineCrawler : 分发资源/协调
+
+engineCrawler --> engineSchedule : 调度请求
+engineCrawler --> spiderTask : 绑定 Seeds
+engineCrawler --> spiderFetcher : 拉取页面
+engineCrawler --> spiderStorage : 保存结果
+engineCrawler --> limiter : 速率控制
+engineCrawler --> proxy : 代理管理
+spiderStorage --> sqlstorage : SQL 持久化
+sqlstorage --> sqldb : DB 访问
+
+apiCrawlerMaster --> apiGateway : 通过 gRPC/HTTP 暴露接口
+logpkg ..> masterSvc
+logpkg ..> engineCrawler
+logpkg ..> sqlstorage
+authpkg ..> masterSvc
+
+note right of engineCrawler
+  Worker 进程运行 Crawler：
+  - 解析 seeds
+  - 调度请求
+  - 调用 Fetcher
+  - 解析 Rule
+  - 通过 Storage 写入
+end note
+
+@enduml
