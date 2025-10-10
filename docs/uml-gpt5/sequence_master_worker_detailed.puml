@@ -1,0 +1,169 @@
+@startuml
+title 完整的分布式爬虫Master-Worker协作时序图
+
+skinparam sequenceMessageAlign center
+skinparam maxMessageSize 200
+
+actor User
+participant "Etcd Cluster" as etcd
+participant "Master1" as master1
+participant "Master2" as master2
+participant "HTTP Gateway" as gateway
+participant "CrawlerMaster gRPC" as masterGrpc
+participant "Worker1" as worker1
+participant "Worker2" as worker2
+participant "engine.Crawler" as crawler
+participant "engine.Schedule" as schedule
+participant "spider.Fetcher" as fetcher
+participant "spider.Rule" as rule
+participant "storage.SQLStorage" as storage
+participant "MySQL DB" as mysql
+
+== 系统启动与Leader选举 ==
+
+User -> master1: 启动 Master1
+User -> master2: 启动 Master2
+
+master1 -> etcd: Campaign("/crawler/election")
+master2 -> etcd: Campaign("/crawler/election")
+etcd --> master1: 选举失败，监听Leader变化
+etcd --> master2: 选举成功，成为Leader
+
+master2 -> master2: BecomeLeader()
+master2 -> etcd: 加载现有资源 loadResource()
+master2 -> gateway: 启动HTTP Gateway
+master2 -> masterGrpc: 启动gRPC服务
+
+== Worker启动与服务注册 ==
+
+User -> worker1: 启动 Worker1
+User -> worker2: 启动 Worker2
+
+worker1 -> etcd: 注册服务 "go.micro.server.worker"
+worker2 -> etcd: 注册服务 "go.micro.server.worker"
+
+etcd --> master2: 监听到Worker节点变化
+master2 -> master2: updateWorkNodes()
+
+worker1 -> crawler: 初始化 Crawler(Seeds/Options)
+worker2 -> crawler: 初始化 Crawler(Seeds/Options)
+
+worker1 -> etcd: 监听资源变化 watchResource("/resources")
+worker2 -> etcd: 监听资源变化 watchResource("/resources")
+
+== 任务添加与分配 ==
+
+User -> gateway: POST /v1/resource {name: "douban_book"}
+gateway -> masterGrpc: AddResource(ResourceSpec)
+
+masterGrpc -> masterGrpc: Hystrix熔断检查
+masterGrpc -> masterGrpc: RateLimit限流检查
+masterGrpc -> master2: 检查是否为Leader
+
+alt 如果是Leader
+    master2 -> master2: Assign() - 选择负载最低的Worker
+    master2 -> etcd: Put("/resources/douban_book", assigned_node: worker1)
+    etcd --> worker1: Watch事件 - 资源添加
+    worker1 -> worker1: runTasks("douban_book")
+    master2 --> gateway: 返回分配的NodeSpec
+else 如果不是Leader
+    master1 -> master2: 转发请求到Leader
+    master2 --> master1: 返回结果
+    master1 --> gateway: 返回结果
+end
+
+gateway --> User: 返回任务创建成功
+
+== 任务执行流程 ==
+
+worker1 -> crawler: 启动任务执行
+crawler -> schedule: Schedule() - 启动调度器
+
+loop 任务执行循环
+    crawler -> schedule: Push(seed requests)
+    schedule -> crawler: Pull() - 获取请求
+    
+    crawler -> fetcher: Get(request)
+    
+    alt 请求成功
+        fetcher --> crawler: 返回页面数据
+        crawler -> rule: ParseFunc(context)
+        rule --> crawler: ParseResult(items, next_requests)
+        
+        alt 有数据项
+            crawler -> storage: Save(items)
+            storage -> mysql: INSERT数据
+            mysql --> storage: 确认保存
+            storage --> crawler: 保存成功
+        end
+        
+        alt 有新请求
+            crawler -> schedule: Push(next_requests)
+        end
+        
+    else 请求失败
+        fetcher --> crawler: 返回错误
+        crawler -> crawler: SetFailure() - 记录失败
+        crawler -> schedule: Push(failed_request) - 重试一次
+    end
+end
+
+== 节点故障与重分配 ==
+
+worker2 -> worker2: 模拟节点故障/停止
+
+etcd --> master2: 监听到Worker2下线
+master2 -> master2: updateWorkNodes() - 更新节点列表
+master2 -> master2: reAssign() - 重分配Worker2的任务
+
+loop 重分配所有Worker2的任务
+    master2 -> master2: Assign() - 选择新的Worker节点
+    master2 -> etcd: Put("/resources/<task_id>", new_assigned_node: worker1)
+    etcd --> worker1: Watch事件 - 新任务分配
+    worker1 -> worker1: runTasks(new_task)
+end
+
+== Master故障切换 ==
+
+master2 -> master2: 模拟Master2故障
+
+etcd --> master1: Leader选举变化通知
+master1 -> master1: BecomeLeader()
+master1 -> etcd: 加载现有资源 loadResource()
+master1 -> gateway: 启动HTTP Gateway
+master1 -> masterGrpc: 启动gRPC服务
+
+note over master1
+新Leader接管所有Master职责：
+- 资源管理
+- 任务分配  
+- 节点监控
+- API服务
+end note
+
+== 优雅关闭 ==
+
+User -> worker1: 发送停止信号
+
+worker1 -> crawler: 停止任务执行
+crawler -> schedule: 停止调度器
+crawler -> storage: 刷新缓存数据
+storage -> mysql: 保存剩余数据
+worker1 -> etcd: 注销服务
+
+etcd --> master1: 监听到Worker1下线
+master1 -> master1: updateWorkNodes()
+master1 -> master1: reAssign() - 重分配任务
+
+note over etcd, mysql
+完整的分布式爬虫系统特点：
+1. 高可用：Master多节点+Leader选举
+2. 容错性：节点故障自动重分配
+3. 可扩展：Worker节点动态加入/退出
+4. 负载均衡：最小负载优先分配
+5. 服务发现：基于etcd的注册中心
+6. 熔断限流：Hystrix+RateLimit保护
+7. 数据一致性：etcd协调+MySQL持久化
+end note
+
+@enduml
